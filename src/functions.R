@@ -459,13 +459,14 @@ wbe_gis_summarize_postal_in_shp <- function(data,
 #' @example
 #' dat <- wbe_gis_gererate_fake_covid_data()
 #' dat %>% write_csv(file.path("data", "fake_covid_data.csv"))
-wbe_gis_gererate_fake_covid_data <- function(n = 50000){
+wbe_gis_gererate_fake_covid_data <- function(n = 50000, postal_pattern = "^M"){
 
     pccf <- wbe_gis_read_pccf()
 
+    pcs <- pccf$Postal %>% grep(pattern = postal_pattern, x = ., value = T) %>% unique() %>% sample(x = ., size = floor(length(.)/50),replace = F) %>% sample(size = n, prob = 1.5^(1:length(.)),replace = T)
     #fake_cases <-
         tibble(
-           postal_code = pccf$Postal %>% unique() %>% sample(size = floor(n/100),replace = F) %>% sample(size = n, prob = 1.5^(1:length(.)),replace = T) ,
+           postal_code = pcs ,
            onset_date = sample(seq(as.Date('2020/01/01'), Sys.Date(), by="day"), size = n , replace = T),
            reported_date_delta = sample(seq(-1, 30), size = n , replace = T),
            lab_date_delta = sample(seq(-3, 3), size = n , replace = T),
