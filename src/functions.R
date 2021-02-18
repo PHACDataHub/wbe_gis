@@ -14,7 +14,7 @@ library(digest)
 library(keyring)
 library(stringi)
 library(openssl)
-
+library(sodium)
 
 WBE_GIS_PCCF_HELPPER_FN <- file.path("data","PCCF", "Geography_2016_Geographie" , "pccf_reading_helper.txt")
 WBE_GIS_PCCF_FN <- file.path("data","PCCF", "Geography_2016_Geographie" , "pccfNat_fccpNat_062017.txt")
@@ -305,6 +305,36 @@ wbe_gis_match_postal <- function(postal){
 
 
 #####################################################
+#' returns points where each postal code is as a st object
+#'
+#'
+#'
+wbe_gis_match_postal_df <- function(data, postal_col = "postal",
+                                 pnts_coords_cols = c("LONG", "LAT"),
+                                 pnts_crs = 4326 # defaults to WGS 84
+){
+
+    postals_in_Polygon <-
+        data[[postal_col]] %>% unique() %>%
+        wbe_gis_match_postal() %>%
+        mutate(LAT = wbe_gis_decrypt(LAT)) %>%
+        mutate(LONG = wbe_gis_decrypt(LONG)) %>%
+        st_as_sf(x = .,
+                 coords = pnts_coords_cols,
+                 crs = pnts_crs,        # defaults to WGS 84
+                 stringsAsFactors = FALSE,
+                 remove = FALSE
+        )
+    postals_in_Polygon
+}
+
+# #leaflet_nrcan_shp_transform(postals_in_Polygon)
+# #a<-st_transform(postals_in_Polygon , leaflet_nrcan_crs_num())
+# st_geometry(a) %>% as_tibble() %>% setNames(c("lon","lat"))
+
+
+
+#####################################################
 #'
 #' returns a dataframe joining  a data frame with postal codes and a polygonal shp file
 #' class(data_shp) should be an "sf" type
@@ -341,7 +371,7 @@ wbe_gis_match_postal_in_shp <- function(data, data_shp, postal_col = "postal",
              coords = pnts_coords_cols,
              crs = pnts_crs,        # defaults to WGS 84
              stringsAsFactors = FALSE,
-             remove = TRUE
+             remove = FALSE
     )  %>%
         st_transform(data_shp_crs) %>%
         st_join(data_shp_poly, join = st_within) %>%
@@ -352,6 +382,12 @@ wbe_gis_match_postal_in_shp <- function(data, data_shp, postal_col = "postal",
     data_tmp %>%
         rename(postal_raw = !!sym(postal_col))    %>%
         left_join(postals_in_Polygon, by ="postal_raw") %>%
+        st_as_sf(
+            coords = pnts_coords_cols,
+            crs = pnts_crs,        # defaults to WGS 84
+            stringsAsFactors = FALSE,
+            remove = TRUE
+        ) %>%
         select(-geometry, -TEM_RAND_KEY, -Postal) %>%
         rename(!!sym(postal_col) := postal_raw)
 }
@@ -366,6 +402,7 @@ wbe_gis_match_postal_in_shp <- function(data, data_shp, postal_col = "postal",
 #'
 #' @example
 #' data <- wbe_gis_gererate_fake_covid_data()
+#' data <- read_csv(file.path("data", "fake_covid_data.csv"))
 #' data_shp <- read_sf(file.path("data", "HR_000a18a_e", "HR_000a18a_e.shp"))
 #' comb_data <- wbe_gis_summarize_postal_in_shp(data, data_shp)
 wbe_gis_summarize_postal_in_shp <- function(data,
@@ -402,13 +439,15 @@ wbe_gis_summarize_postal_in_shp <- function(data,
 
 
     case_data_polygon %>%
+        as.tibble() %>%
         group_by_at(vars(one_of(columns2))) %>%
         summarise(value = n()) %>%
         #rename_at(vars(starts_with(polygon_prefix)), function(x){gsub(pattern = polygon_prefix, replacement = "", x = x)}) %>%
         rename(date := date_col) %>%
         mutate(dateType = date_type) %>%
         mutate(type = case_type) %>%
-        ungroup() #%>% count(postal_exists, found_postal_in_pccf)
+        ungroup() %>% #count(postal_exists, found_postal_in_pccf)
+        relocate(date, postal_exists, found_postal_in_pccf, value)
 }
 
 

@@ -1,7 +1,27 @@
 library(tidyverse)
 library(leaflet)
 library(glue)
+
+
+
+
+##########################################
+#'
+#' Returns EPSG number used by NRCAN tiles
+#'
 leaflet_nrcan_crs_num <- function(){3978}
+
+leaflet_nrcan_crs_proj4def <- function(){
+    '+proj=lcc +lat_1=49 +lat_2=77 +lat_0=49 +lon_0=-95 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs'
+}
+
+
+
+##########################################
+#'
+#' Returns a CRS for NRCAN tiles needed for leaflet
+#' Note: this is kinda brittle and I think all the little specific numbers on res and bnds need to be exact... its wierd
+#'
 leaflet_nrcan_crs <- function(){
 
     orgn <- c(-34655800, 39310000)
@@ -45,7 +65,7 @@ leaflet_nrcan_crs <- function(){
     leafletCRS(
         crsClass = "L.Proj.CRS",
         code = glue("EPSG:{leaflet_nrcan_crs_num()}"),
-        proj4def = '+proj=lcc +lat_1=49 +lat_2=77 +lat_0=49 +lon_0=-95 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs',
+        proj4def = leaflet_nrcan_crs_proj4def(),
         origin = orgn,
         bounds =  bnds,
         resolutions = res
@@ -56,14 +76,9 @@ leaflet_nrcan_crs <- function(){
 leaflet_nrcan <- function(...){
 
 
-
-
-
-
-
     urlTemplate = "https://geoappext.nrcan.gc.ca/arcgis/rest/services/BaseMaps/CBMT3978/MapServer/tile/{z}/{y}/{x}?m4h=t"
 
-    tile_attrib <- "Stuff about things"
+    tile_attrib <- "base from geoappext.nrcan.gc.ca"
 
     epsg3978 <- leaflet_nrcan_crs()
 
@@ -87,20 +102,23 @@ leaflet_nrcan <- function(...){
 
     m
 }
+
+leaflet_nrcan_point_extract <- function(shp){
+    tmp<-
+        shp %>%
+        leaflet_nrcan_shp_transform()
+    do.call(rbind, st_geometry(tmp)) %>%
+        as_tibble() %>% setNames(c("lng","lat"))
+
+}
+
+
+
+#####################################
+#'
+#'unsure why but we needto transform shp files to ESPG 4326 WGS84 before sending to leaflet
+#'
+#'
 leaflet_nrcan_shp_transform <- function(shp){
     st_transform(shp, 4326)
 }
-#leaflet(st_transform(shp, 4326)) %>% addPolygons()
-#m %>% addPolygons(data = st_transform(shp, 4326), color = "green")
-#
-# shp = read_sf(file.path("data", "HR_000a18a_e", "HR_000a18a_e.shp"))
-# leaflet_nrcan_crs()
-# st_transform(shp, leaflet_nrcan_crs_num())
-# leaflet_nrcan_shp_transform <- function(shp){
-#     st_transform(shp, leaflet_nrcan_crs_num())
-# }
-#leaflet_nrcan_shp_transform(read_sf(file.path("data", "HR_000a18a_e", "HR_000a18a_e.shp")))
-#
-#
-# est <- gIntersection(NYC, NYC, byid=FALSE) # create a spatial polygon by intersecting the city with itself
-# test <- spTransform(test, CRS("+proj=longlat +datum=WGS84")) # force the polygon to the same crs as leaflet maps
