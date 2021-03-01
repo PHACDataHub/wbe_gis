@@ -14,8 +14,8 @@ library(data.table)
 library(DT)
 
 source(file.path("src","leaflet_nrcan.r"))
-
 source(file.path("src","functions.r"))
+
 
 ###################################################
 # Define UI for application
@@ -28,9 +28,9 @@ ui <- fluidPage(
     sidebarLayout(
         sidebarPanel(
 
-            shinyFilesButton(id = 'files', label='polygon file', title='Please select a shape file', multiple=FALSE),
+            shinyFilesButton(id = 'files', label='Polygon file', title='Polygon file', multiple=FALSE),
             verbatimTextOutput('filepaths'),
-            shinyFilesButton(id = 'files_patient', label='patien files', title='Please select a file', multiple=FALSE),
+            shinyFilesButton(id = 'files_patient', label='Patient File', title='Patient File', multiple=FALSE),
             verbatimTextOutput('filepaths_patient'),
             selectInput(inputId = "postal_nm", label = "postal code", choices = NULL),
             selectInput(inputId = "time_nm", label = "time", choices = NULL),
@@ -40,13 +40,17 @@ ui <- fluidPage(
                                                                                    "test" = "test"
                                                                                    )),
             actionButton("Summarize_by_shp", "Summarize"),
-            dataTableOutput('patient_table')
+
         ),
 
 
         # Show a plot of the map
         mainPanel(
-            leafletOutput("mymap", height = "95vh")
+            leafletOutput("mymap",
+                          #height = "95vh"
+                          ),
+            p(),
+            dataTableOutput('patient_table')
 
 
 

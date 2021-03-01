@@ -15,6 +15,10 @@ library(keyring)
 library(stringi)
 library(openssl)
 library(sodium)
+library(rstudioapi)
+
+
+
 
 WBE_GIS_PCCF_HELPPER_FN <- file.path("data","PCCF", "Geography_2016_Geographie" , "pccf_reading_helper.txt")
 WBE_GIS_PCCF_FN <- file.path("data","PCCF", "Geography_2016_Geographie" , "pccfNat_fccpNat_062017.txt")
@@ -63,11 +67,34 @@ wbe_gis_passkey <- function(){
 #' gets a passkey key remember to set
 #'
 #' @example
-#' wbe_gis_passkey()
+#' wbe_gis_passkey_key()
 wbe_gis_passkey_key <- function(){
-    key_get("wbe_gis_pccf")
+    # tryCatch({
+        key_get("wbe_gis_pccf")
+    # }, error=function(cond) {
+    #     tmppw <- rstudioapi::askForPassword(prompt = "Please enter your password")
+    #     wbe_gis_passkey_set(tmppw)
+    #
+    # }
+    # , warning=function(cond) {
+    #
+    #
+    # }, finally={
+    #
+    #
+    #
+    # }
+    #)
+
 }
 
+
+################################################
+#'
+wbe_gis_passkey_key_set_ask <- function(){
+    rstudioapi::askForPassword(prompt = "Please enter your password") %>%
+        wbe_gis_passkey_set()
+}
 
 ################################################
 #'
@@ -127,9 +154,9 @@ wbe_gis_map_quest_api_key_set <- function(value){
 #'
 #' @example
 #' wbe_gis_passkey_set()
-wbe_gis_passkey_set <- function(){
-    keyring::key_set_with_value("wbe_gis_pccf", password = stri_rand_strings(1,25))
-}
+# wbe_gis_passkey_set <- function(){
+#     keyring::key_set_with_value("wbe_gis_pccf", password = stri_rand_strings(1,25))
+# }
 
 
 
@@ -142,7 +169,8 @@ wbe_gis_passkey_set <- function(){
 #'
 #' @example
 #' wbe_gis_passkey_set()
-wbe_gis_passkey_set_with_value <- function(value){
+#' wbe_gis_passkey_set(value = "SOME_LONG_STRING_THAT_IS_NOT_THIS")
+wbe_gis_passkey_set <- function(value = stri_rand_strings(1,25)){
     key_set_with_value(service = "wbe_gis_pccf", password = value)
 }
 
@@ -463,7 +491,12 @@ wbe_gis_gererate_fake_covid_data <- function(n = 50000, postal_pattern = "^M"){
 
     pccf <- wbe_gis_read_pccf()
 
-    pcs <- pccf$Postal %>% grep(pattern = postal_pattern, x = ., value = T) %>% unique() %>% sample(x = ., size = floor(length(.)/50),replace = F) %>% sample(size = n, prob = 1.5^(1:length(.)),replace = T)
+    pcs <-
+        pccf$Postal %>%
+        grep(pattern = postal_pattern, x = ., value = T) %>%
+        unique() %>%
+        sample(x = ., size = floor(length(.)/10),replace = F) %>%
+        sample(x = ., size = n, prob = 1.1^(1:length(.)),replace = T)
     #fake_cases <-
         tibble(
            postal_code = pcs ,
