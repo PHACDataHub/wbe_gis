@@ -87,7 +87,7 @@ wbe_gis_passkey_key <- function(){
     #)
 
 }
-wbe_gis_passkey_key_set_ask()
+#wbe_gis_passkey_key_set_ask()
 
 ################################################
 #'
@@ -225,6 +225,8 @@ wbe_gis_decrypt <- function(x_v){
 wbe_gis_read_pccf <- function(helper_fn  =WBE_GIS_PCCF_HELPPER_FN,
                               fn = WBE_GIS_PCCF_FN
                               ){
+
+
     pccf_helper <-
         helper_fn %>%
         read_tsv() %>%
@@ -246,6 +248,8 @@ wbe_gis_read_pccf <- function(helper_fn  =WBE_GIS_PCCF_HELPPER_FN,
 }
 
 
+
+
 ################################################
 #'
 #' Reads in the PCCF file, summarizes it hashes it and encrypts it,
@@ -258,23 +262,24 @@ wbe_gis_encrypt_pccf <- function(helper_fn  =WBE_GIS_PCCF_HELPPER_FN,
                                  fn = WBE_GIS_PCCF_FN,
                                  enc_fn_location = WBE_GIS_PCCF_ENCRYPTED_FN){
 
-    pccf_helper <-
-        helper_fn %>%
-        read_tsv() %>%
-        clean_names() %>%
-        mutate(field_name = iconv(field_name)) %>%
-        mutate(type = tolower(type))
-
-
-
-    tic <- Sys.time()
-    pccf <-
-        fn %>%
-        read_fwf(col_positions = fwf_widths(widths = pccf_helper$size),
-                 col_types  = pccf_helper$type %>% paste0(collapse = "")) %>%
-        setNames(pccf_helper$field_name)
-    toc <- Sys.time()
-    print(toc-tic)
+    pccf <- wbe_gis_read_pccf(helper_fn = helper_fn, fn = fn)
+    # pccf_helper <-
+    #     helper_fn %>%
+    #     read_tsv() %>%
+    #     clean_names() %>%
+    #     mutate(field_name = iconv(field_name)) %>%
+    #     mutate(type = tolower(type))
+    #
+    #
+    #
+    # tic <- Sys.time()
+    # pccf <-
+    #     fn %>%
+    #     read_fwf(col_positions = fwf_widths(widths = pccf_helper$size),
+    #              col_types  = pccf_helper$type %>% paste0(collapse = "")) %>%
+    #     setNames(pccf_helper$field_name)
+    # toc <- Sys.time()
+    # print(toc-tic)
 
 
 
@@ -363,6 +368,77 @@ wbe_gis_match_postal_df <- function(data, postal_col = "postal",
 
 
 #####################################################
+#' wbe_gis_find_postal_codes_in_shps()
+wbe_gis_find_postal_codes_in_shps <- function( fns = list.files(path = "data", pattern = "shp$", full.names = T, recursive = T)    ){
+
+    walk(fns, function(shp_fn){
+        #shp_fn <- fns[1]
+        print(shp_fn)
+        shp <- read_sf(shp_fn)
+        in_shp <- wbe_gis_get_postal_codes_in_shp(data_shp = shp)
+        in_shp %>% count(postal_in_shp_mean)
+
+
+        pc_fn <- gsub(x = shp_fn, pattern = "\\.shp$", replacement = "_postal_codes.csv")
+        in_shp %>% filter(postal_in_shp_mean == 1) %>% write_csv(pc_fn)
+
+
+
+    })
+}
+
+
+
+
+#####################################################
+#'
+wbe_gis_get_postal_codes_in_shp <- function(data_shp,
+                                            pnts_crs = 4326,# defaults to WGS 84
+                                            pc_vec = NULL){
+    # get the correct crs
+    data_shp_crs <- st_crs(data_shp)
+
+    #add prefix to polygon file
+    data_shp_poly <-
+        data_shp %>%
+        rename_all(function(x){paste0(polygon_prefix, x)}) %>%
+        mutate(always_true = TRUE)
+
+
+    pccf <-
+    if (is.null(pc_vec)){
+        wbe_gis_read_pccf()
+    }else{
+        wbe_gis_read_pccf() %>% filter(Postal  %in%  pc_vec)
+    }
+    pccf_shp <-
+        pccf %>%
+        distinct(Postal, LAT, LONG) %>%
+        st_as_sf(x = .,
+                 coords = pnts_coords_cols,
+                 crs = pnts_crs,        # defaults to WGS 84
+                 stringsAsFactors = FALSE,
+                 remove = FALSE
+        )%>%
+        st_transform(data_shp_crs) %>%
+        st_join(data_shp_poly, join = st_within) %>%
+        mutate(postal_in_shp = as.integer(!is.na(always_true))) %>%
+        select(-always_true)
+
+    pccf_shp_in <-
+        pccf_shp %>%
+        #mutate(postal_in_shp = as.integer(postal_in_shp)) %>%
+        as.tibble() %>% #count(found_postal_in_pccf)
+        #sample_n(100000) %>%
+        group_by(Postal) %>%
+        summarise_at(vars(LAT,  LONG, postal_in_shp), tibble::lst(mean))
+
+    pccf_shp_in
+    # pccf_shp_in %>% ggplot(aes(x = found_postal_in_pccf_mean)) + geom_density()
+    # pccf_shp_in %>%count(found_postal_in_pccf_mean) %>% arrange(found_postal_in_pccf_mean)
+}
+
+#####################################################
 #'
 #' returns a dataframe joining  a data frame with postal codes and a polygonal shp file
 #' class(data_shp) should be an "sf" type
@@ -378,17 +454,26 @@ wbe_gis_match_postal_in_shp <- function(data, data_shp, postal_col = "postal",
                                         polygon_prefix = "polygon_"
                                         ){
 
+    ###
+    #add prefix to polygon file
     data_shp_poly <-
         data_shp %>%
         rename_all(function(x){paste0(polygon_prefix, x)}) %>%
         mutate(always_true = TRUE)
 
 
+    # get the correct crs
     data_shp_crs <- st_crs(data_shp)
 
+
+    #temp data
     data_tmp <-
         data %>%
         mutate(TEM_RAND_KEY = 1:nrow(.))
+
+
+    ####################################
+    #match the postal codes with the given polygon
     postals_in_Polygon <-
         data_tmp[[postal_col]] %>% unique() %>%
         wbe_gis_match_postal() %>%
@@ -450,7 +535,7 @@ wbe_gis_summarize_postal_in_shp <- function(data,
 
     polygon_prefix = "polygon_"
     #polygon_suffix = ""
-    case_data_polygon <- wbe_gis_match_postal_in_shp (data = data, data_shp = data_shp, postal_col = postal_col, polygon_prefix = polygon_prefix)
+    case_data_polygon <- wbe_gis_match_postal_in_shp(data = data, data_shp = data_shp, postal_col = postal_col, polygon_prefix = polygon_prefix)
 
 
     columns <- case_data_polygon %>% colnames() %>% grep(pattern = polygon_prefix , x = ., ignore.case = T, value = T)
